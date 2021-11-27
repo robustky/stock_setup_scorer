@@ -38,7 +38,7 @@ def get_ticker_dataFrame(tick, period='1y', interval='1d'):
     # gets the ticker and returns pandas DataFrame version
     data_ohlc = yf.Ticker(tick) # get the Ticker data from yfinance
     dataFrame = data_ohlc.history(period=period, interval=interval) # read ohlc data with specified period and interval, interval should be "1d"
-    #dataFrame = dataFrame.iloc[:-49 , :]
+    # dataFrame = dataFrame.iloc[:-49 , :] to analyze previous day
     #print(len(dataFrame.index))
     if (len(dataFrame.index) != 0) and (not dataFrame['Close'].isnull().values.any()):  # check whether the data can be retrieved
         dataFrame.reset_index(level=0, inplace=True) # to convert index from date to 0,1,2... integer and assigning date to a column value

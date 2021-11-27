@@ -33,7 +33,7 @@ def get_ticker_dataFrame(tick, period='1y', interval='1d'):
     # gets the ticker and returns pandas DataFrame version
     data_ohlc = yf.Ticker(tick) # get the Ticker data from yfinance
     dataFrame = data_ohlc.history(period=period, interval=interval) # read ohlc data with specified period and interval, interval should be "1d"
-    dataFrame = dataFrame.iloc[:-49 , :]
+    # dataFrame = dataFrame.iloc[:-49 , :] to analyze previous day
     if (len(dataFrame.index) != 0) and (not dataFrame['Close'].isnull().values.any()): # check whether the data can be retrieved
         dataFrame.reset_index(level=0, inplace=True) # to convert index from date to 0,1,2... integer and assigning date to a column value
         #dataFrame.drop(columns=["Dividends","Stock Splits"], inplace=True)  # remove unnecesary column(s)
@@ -94,7 +94,7 @@ def get_regions(df, sma_in, sma_out):
     in_region = False
     index_start = []
     index_end = []
-    for i in range(len(df)):
+    for i in range(30,len(df)): # do not interested in the first 30 days
         if df.SMA_in_slope[i] > 0 and in_region == False:
             in_region = True
 
@@ -154,16 +154,19 @@ def filter_percent_increase(df, region_indexes, min_percent_increase_multiplier,
     df['atr'] = df[['dummy1', 'dummy2', 'dummy3']].values.max(1)
     df.drop(columns=['dummy1','dummy2','dummy3'], inplace=True)
     df['natr'] = df.atr/df.Close
-    natr_mean = mean(df.natr)
+    #natr_mean = mean(df.natr)
 
-    df['co_tightness'] = (df.Close-df.Open)/df.Close
-    df['hl_tightness'] = (df.High-df.Low)/df.Close
+    df['co_tightness'] = abs((df.Close-df.Open)/df.Close)
+    # df['hl_tightness'] = (df.High-df.Low)/df.Close
 
-    min_percent_increase = natr_mean * min_percent_increase_multiplier
-    min_percent_increase = min(min_percent_increase, min_percent_increase_lim)
+    df['d_range'] = (df.High/df.Low) - 1
     deleted_indexes = []
     for i in range(len(region_indexes)):
-        perc_increase = (df.Close[region_indexes[i][1]] - df.Close[region_indexes[i][0]]) / df.Close[region_indexes[i][0]]
+        ris = region_indexes[i][0]
+        rie = region_indexes[i][1]
+        min_percent_increase = df.d_range[(ris-20):ris].mean() * min_percent_increase_multiplier
+        min_percent_increase = min(min_percent_increase, min_percent_increase_lim)
+        perc_increase = (df.Close[rie] - df.Close[ris]) / df.Close[ris]
         if (perc_increase < min_percent_increase):  # consecutive day treshold
             deleted_indexes.append(i)
     region_indexes = np.delete(region_indexes, deleted_indexes, 0)
@@ -316,21 +319,6 @@ def htf_score_calc(df, region_indexes):
     df[["SMA_cond_score","pole_score_mod","modified_pole_length","cons_day_count",
         "ftpr_score","ave_cons_tightness_score","natr_score","htf_weighted_slope_score","htf_score"]] = np.NaN
 
-    # Ticker Related Parameters
-    ave_tightness = mean(abs(df.co_tightness))
-    close_open_tightness_ratio_threshold = ave_tightness * tightness_threshold_constant
-    close_open_tightness_ratio_threshold = max(close_open_tightness_ratio_threshold, tightness_threshold_lower_lim_percent)
-    close_open_tightness_ratio_2days_threshold = ave_tightness * tightness_threshold_2days_constant
-    close_open_tightness_ratio_2days_threshold = max(close_open_tightness_ratio_threshold, tightness_threshold_lower_lim_percent)
-
-    ave_high_low_tightness = mean(abs(df.hl_tightness))
-    # high_low_tightness_ratio_threshold = ave_high_low_tightness * tightness_threshold_constant
-    # high_low_tightness_ratio_threshold = max(high_low_tightness_ratio_threshold, tightness_threshold_lower_lim_percent)
-    # high_low_tightness_ratio_2days_threshold = ave_high_low_tightness * tightness_threshold_2days_constant
-    # high_low_tightness_ratio_2days_threshold = max(high_low_tightness_ratio_threshold, tightness_threshold_lower_lim_percent)
-
-    natr_mean = df.natr.mean()
-
     region_cnt = 0
     # looping through every upward linear movement of a ticker to check for consolidation (i.e pole-flag check)
     for rind in region_indexes:
@@ -384,7 +372,7 @@ def htf_score_calc(df, region_indexes):
                 #if PRINT_STATE: print("It is top flag, continue to next day!")
                 continue # continue to next day
 
-            down_day_count = np.where(df.co_tightness[(ind_flag-5):(ind_flag+1)] < 0, 1 ,0).sum() # downday count of last 6 days
+            down_day_count = np.where(df.Close[(ind_flag-5):(ind_flag+1)]-df.Open[(ind_flag-5):(ind_flag+1)] < 0, 1 ,0).sum() # downday count of last 6 days
             if down_day_count >= 5: # last days are mostly down days
                 #if PRINT_STATE: print("There are down days in a row, continue to next day!")
                 continue # continue to next day
@@ -398,6 +386,16 @@ def htf_score_calc(df, region_indexes):
                 #if PRINT_STATE: print("Closed below critical daily range: Close limit was {0}, continue to next day!".format(dont_close_below_this))
                 continue    # continue to next day
 
+            if df.d_range[ind_flag-20:ind_flag].mean() < 0.02:
+                # not ranging enough
+                continue
+
+            co_tight_mean = df.co_tightness[ind_flag-20:ind_flag].mean()
+            co_tight_thresh = co_tight_mean*tightness_threshold_constant
+
+            ave_high_low_tightness = mean(abs(df.hl_tightness))
+
+            natr_mean = df.natr.mean()
             failed_breakout_ratio = ave_high_low_tightness*0.5
             if ((df.High[ind_flag]-df.Close[ind_flag])/df.Close[ind_flag]) > failed_breakout_ratio: # failed break out, indicating to go down
                 #if PRINT_STATE: print("Failed breakout: Breakout limit was {0}, continue to next day!".format(failed_breakout_ratio))

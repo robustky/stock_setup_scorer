@@ -33,7 +33,7 @@ def get_ticker_dataFrame(tick, period='1y', interval='1d', source: str = 'yf', p
     if source == 'yf':
         data_ohlc = yf.Ticker(tick)  # get the Ticker data from yfinance
         dataFrame = data_ohlc.history(period=period, interval=interval)
-        dataFrame = dataFrame.iloc[:-49, :]
+        # dataFrame = dataFrame.iloc[:-49, :] # to analyze previous day
         if (len(dataFrame.index) != 0) and (
                 not dataFrame['Close'].isnull().values.any()):  # check whether the data can be retrieved
             dataFrame.reset_index(level=0, inplace=True)
