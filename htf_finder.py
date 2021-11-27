@@ -10,14 +10,13 @@ import yfinance as yf
 from mbs_scorer import *
 
 
-
 cwd = os.getcwd()
 
 # ticker_data = pd.read_csv("stock_list_feedback.csv",index_col=False) ---- for ticker in ticker_data.ticker:
 TICKER_HTF_TRIGGED = []
 TICKER_HTF_SCORES = []
 #TICKERS = ['KEYS', 'LULU', 'TX', 'UNIT', 'NKE', 'ARE', 'LLY', 'OTIS', 'CUBE', 'LNT', 'TRMB', 'CARR', 'XM', 'DE', 'WAB', 'ROK', 'GTLS', 'RELX', 'KAR', 'NAVI', 'LSPD', 'FIVE', 'TBIO', 'CVNA', 'SIC', 'LC']
-TICKERS = ['COP']
+TICKERS = ['COP','KEYS']
 
 
 cnt = 0
