@@ -179,23 +179,25 @@ def get_SMA_condition(df, sma_fast, sma_slow, sma_ratio_threshold):
 def filter_percent_increase(df, region_indexes, min_percent_increase_multiplier, min_percent_increase_lim):
     # filters min percent increase
 
-    df['dummy1'] = df.High - df.Low
-    df['dummy2'] = (df.High - df.Close.shift(1, fill_value=df.High[0])).abs()
-    df['dummy3'] = (df.Low - df.Close.shift(1, fill_value=df.Low[0])).abs()
+    df['dummy1'] = df.High-df.Low
+    df['dummy2'] = (df.High-df.Close.shift(1,fill_value=df.High[0])).abs()
+    df['dummy3'] = (df.Low-df.Close.shift(1,fill_value=df.Low[0])).abs()
     df['atr'] = df[['dummy1', 'dummy2', 'dummy3']].values.max(1)
-    df.drop(columns=['dummy1', 'dummy2', 'dummy3'], inplace=True)
-    df['natr'] = df.atr / df.Close
-    natr_mean = mean(df.natr)
+    df.drop(columns=['dummy1','dummy2','dummy3'], inplace=True)
+    df['natr'] = df.atr/df.Close
+    #natr_mean = mean(df.natr)
 
-    df['co_tightness'] = (df.Close - df.Open) / df.Close
-    df['hl_tightness'] = (df.High - df.Low) / df.Close
+    df['co_tightness'] = abs((df.Close-df.Open)/df.Close)
+    df['hl_tightness'] = (df.High-df.Low)/df.Close
+    df['d_range'] = df.High-df.Low
 
-    min_percent_increase = natr_mean * min_percent_increase_multiplier
-    min_percent_increase = min(min_percent_increase, min_percent_increase_lim)
     deleted_indexes = []
     for i in range(len(region_indexes)):
-        perc_increase = (df.Close[region_indexes[i][1]] - df.Close[region_indexes[i][0]]) / df.Close[
-            region_indexes[i][0]]
+        ris = region_indexes[i][0]
+        rie = region_indexes[i][1]
+        min_percent_increase = df.hl_tightness[(ris-20):ris].mean() * min_percent_increase_multiplier
+        min_percent_increase = min(min_percent_increase, min_percent_increase_lim)
+        perc_increase = (df.Close[rie] - df.Close[ris]) / df.Close[ris]
         if (perc_increase < min_percent_increase):  # consecutive day treshold
             deleted_indexes.append(i)
     region_indexes = np.delete(region_indexes, deleted_indexes, 0)
@@ -303,72 +305,33 @@ def get_linearity_score(df, region_indexes, min_var_ratio, max_var_ratio, min_oh
 
 
 def htf_score_calc(df, region_indexes):
-    ##########################################################
-    #####START###### HTF DETECTION PARAMETERS #####START###### 
-
-    tightness_threshold_constant = 0.75  # tightness_threshold = average_tightness * tightness_threshold_constant -->
-    # if price action is tighter than the tightness_hreshold, it is cosidered tight
-    tightness_threshold_2days_constant = 1.25  # tightness_threshold = average_tightness *
-    # tightness_threshold_constant --> if price action is tighter than the tightness_hreshold, it is cosidered tight
-    tightness_threshold_lower_lim_percent = 0.0075  # minimum possible tightness threshold percent
-
-    # price_band_lower_tightness_constant = 1.5 # defining price band thickness with respect to average pole tightness
-    # price_band_upper_tightness_constant = 2.5 # defining price band thickness with respect to average pole tightness
-    length_ratio_lim = 0.75  # htf search area length, ratio to previous pole length (i.e: if the leg(i.e pole)
-    # length is 12 days, max htf check length is 9 days)
-
-    #####END###### HTF DETECTION PARAMETERS #####END##########
-    ##########################################################
 
     ########################################################
     #####START###### HTF SCORING PARAMETERS #####START###### 
 
     # flag to pole ratio scoring parameters
-    ftpr_score_max = 10  # maximum allowable ftpr score
-    ftpr_score_min = 1  # minimum allowable ftpr score, if the htf is found during the linear movement it directly
-    # gets the ftpr_score_min
-    flag_to_pole_ratio_min = 0  # when ftpr ratio is between min and opt_low_lim, ftpr score is between
-    # ftpr_score_min and ftpr_score_max, score is linearly distrubuted
-    flag_to_pole_ratio_opt_low_lim = 0.25  # ftpr ratio optimum lower lim --> when ftpr is between opt. upper and
-    # lower lim, ftpr score is eqaul to ftpr_score_max
-    flag_to_pole_ratio_opt_up_lim = 0.5  # ftpr ratio optimum upper lim --> when ftpr is between opt. upper and lower
-    # lim, ftpr score is eqaul to ftpr_score_max
-    flag_to_pole_ratio_max = length_ratio_lim  # when ftpr ratio is between opt_up_lim and max, ftpr score is between
-    # ftpr_score_min and ftpr_score_max, score is linearly distrubuted
+    length_ratio_lim = 0.5         # htf search area length, ratio to previous pole length (i.e: if the leg(i.e pole) length is 12 days, max htf check length is 6 days)
+    ftpr_score_max = 10    # maximum allowable ftpr score
+    ftpr_score_min = 1    # minimum allowable ftpr score, if the htf is found during the linear movement it directly gets the ftpr_score_min
+    flag_to_pole_ratio_min = 0              # when ftpr ratio is between min and opt_low_lim, ftpr score is between ftpr_score_min and ftpr_score_max, score is linearly distrubuted
+    flag_to_pole_ratio_opt_low_lim = 0.125   # ftpr ratio optimum lower lim --> when ftpr is between opt. upper and lower lim, ftpr score is eqaul to ftpr_score_max
+    flag_to_pole_ratio_opt_up_lim = 0.375     # ftpr ratio optimum upper lim --> when ftpr is between opt. upper and lower lim, ftpr score is eqaul to ftpr_score_max
+    flag_to_pole_ratio_max = length_ratio_lim # when ftpr ratio is between opt_up_lim and max, ftpr score is between ftpr_score_min and ftpr_score_max, score is linearly distrubuted
 
     # lets handle the youngness of movement scoring differently
     # scoring acording to SMA_cond (last consecutively day count where SMA_cond is satisfied)
     SMA_cond_score_max = 10
     SMA_cond_score_min = 1
-    min_SMA_cond_thresh = 0  # days
-    min_opt_SMA_cond_thresh = 5  # days
-    max_opt_SMA_cond_thresh = 40  # days
-    max_SMA_cond_thresh = 80  # days
-
+    min_SMA_cond_thresh = 0         # days
+    min_opt_SMA_cond_thresh = 5    # days
+    max_opt_SMA_cond_thresh = 40    # days
+    max_SMA_cond_thresh = 80        # days
+                                                                                                 
     #####END###### HTF SCORING PARAMETERS #####END##########
     ########################################################
 
-    df[["SMA_cond_score", "pole_score_mod", "modified_pole_length", "cons_day_count",
-        "ftpr_score", "ave_cons_tightness_score", "natr_score", "htf_weighted_slope_score", "htf_score"]] = np.NaN
-
-    # Ticker Related Parameters
-    ave_tightness = mean(abs(df.co_tightness))
-    close_open_tightness_ratio_threshold = ave_tightness * tightness_threshold_constant
-    close_open_tightness_ratio_threshold = max(close_open_tightness_ratio_threshold,
-                                               tightness_threshold_lower_lim_percent)
-    close_open_tightness_ratio_2days_threshold = ave_tightness * tightness_threshold_2days_constant
-    close_open_tightness_ratio_2days_threshold = max(close_open_tightness_ratio_threshold,
-                                                     tightness_threshold_lower_lim_percent)
-
-    ave_high_low_tightness = mean(abs(df.hl_tightness))
-    # high_low_tightness_ratio_threshold = ave_high_low_tightness * tightness_threshold_constant
-    # high_low_tightness_ratio_threshold = max(high_low_tightness_ratio_threshold,
-    # tightness_threshold_lower_lim_percent)
-    # high_low_tightness_ratio_2days_threshold = ave_high_low_tightness * tightness_threshold_2days_constant
-    # high_low_tightness_ratio_2days_threshold = max(high_low_tightness_ratio_threshold,
-    # tightness_threshold_lower_lim_percent)
-
-    natr_mean = df.natr.mean()
+    df[["SMA_cond_score","pole_score_mod","modified_pole_length","cons_day_count",
+        "ftpr_score","ave_cons_tightness_score","natr_score","htf_weighted_slope_score","htf_score"]] = np.NaN
 
     region_cnt = 0
     # looping through every upward linear movement of a ticker to check for consolidation (i.e pole-flag check)
@@ -386,179 +349,185 @@ def htf_score_calc(df, region_indexes):
         pole_end_price = df.Close[pole_end_ind]
         pole_increase_price = pole_end_price - pole_start_price
 
-        lower_price_band = pole_end_price - pole_increase_price * 0.25
-        upper_price_band = pole_end_price + pole_increase_price * 0.20
+        lower_price_band = pole_end_price - pole_increase_price*0.20
+        upper_price_band = pole_end_price + pole_increase_price*0.20
 
         pole_score = df.region_lin_score[pole_start_ind]
 
         pole_length = df.day_length[pole_start_ind]
-        flag_max_check_length = math.ceil(pole_length * length_ratio_lim)
+        flag_max_check_length = math.ceil(pole_length*length_ratio_lim)
+        flag_max_check_length = min(flag_max_check_length, 10)
 
         # Looping through to find the HTF_setup
-        for ind_flag in range(pole_start_ind + 5, flag_start_ind + flag_max_check_length):
+        for ind_flag in range(pole_start_ind+5, flag_start_ind+flag_max_check_length):
             # if PRINT_STATE: print("Checking index: {0}... : ".format(ind_flag), end="")
 
-            if ind_flag > df.index[-1]:  # exceeding the most current day
+            if ind_flag > df.index[-1]: # exceeding the most current day
                 # if PRINT_STATE: print("Reached the current day, search is finished!")
-                break  # break out
+                break # break out
+        
+            natr_mean = df.natr[ind_flag]
 
             if ind_flag <= pole_end_ind:
                 is_in_pole = True
                 is_in_price_band_2days = True
-                max_close_regional = max(df.Close[pole_start_ind:ind_flag + 1])
-                is_top = False if ((df.Close[ind_flag] < max_close_regional) and
-                                   (df.Close[ind_flag - 1] < max_close_regional)) else True
+                max_close_regional = max(df.Close[pole_start_ind:ind_flag+1])
+                is_top = False if ((df.Close[ind_flag]<max_close_regional) and 
+                                   (df.Close[ind_flag-1]<max_close_regional)) else True            
             else:
                 is_in_pole = False
-                is_in_price_band_2days = True if ((lower_price_band <= df.Close[ind_flag] <= upper_price_band) or
-                                                  (lower_price_band <= df.Close[
-                                                      ind_flag - 1] <= upper_price_band)) else False
+                is_in_price_band_2days = True if ((lower_price_band <= df.Close[ind_flag] <= upper_price_band) or 
+                                                  (lower_price_band <= df.Close[ind_flag-1] <= upper_price_band)) else False
                 is_top = False
+            
 
-            if not is_in_price_band_2days:  # violating the price band condition
-                # if PRINT_STATE: print("Out of price band 2 days in a row! Search is terminated! Upper lim: {0}
-                # Lower lim: {1}".format(upper_price_band, lower_price_band))
-                break  # break out
+            if not is_in_price_band_2days: # violating the price band condition
+                # if PRINT_STATE: print("Out of price band 2 days in a row! Search is terminated! Upper lim: {0} Lower lim: {1}".format(upper_price_band, lower_price_band))
+                break # break out
 
             if is_top:  # not satisfying the not being a top price condition
                 # if PRINT_STATE: print("It is top flag, continue to next day!")
-                continue  # continue to next day
+                continue # continue to next day
 
-            down_day_count = np.where(df.co_tightness[(ind_flag - 5):(ind_flag + 1)] < 0, 1,
-                                      0).sum()  # downday count of last 6 days
-            if down_day_count >= 5:  # last days are mostly down days
+            if df.Close[ind_flag-4] > df.Close[ind_flag-3] > df.Close[ind_flag-2] > df.Close[ind_flag-1]:
                 # if PRINT_STATE: print("There are down days in a row, continue to next day!")
-                continue  # continue to next day
+                continue # continue to next day
 
-            if df.SMA_cond[ind_flag] == 0:  # not satisfying SMA cond
+            if df.SMA_cond[ind_flag] == 0: # not satisfying SMA cond
                 # if PRINT_STATE: print("SMA Cond is not satisfied, continue to next day!")
-                continue  # continue to next day
+                continue    # continue to next day
 
-            dont_close_below_this = (df.High[ind_flag] - df.Low[ind_flag]) * 0.25 + df.Low[ind_flag]
-            if df.Close[ind_flag] < dont_close_below_this:  # failed break out, indicating to go down
-                # if PRINT_STATE: print("Closed below critical daily range: Close limit was {0}, continue to next
-                # day!".format(dont_close_below_this))
-                continue  # continue to next day
+            dont_close_below_this = (df.High[ind_flag]-df.Low[ind_flag])*0.30 + df.Low[ind_flag]
+            if df.Close[ind_flag] < dont_close_below_this: # failed break out, indicating to go down
+                # if PRINT_STATE: print("Closed below critical daily range: Close limit was {0}, continue to next day!".format(dont_close_below_this))
+                continue    # continue to next day
 
-            failed_breakout_ratio = ave_high_low_tightness * 0.5
-            if ((df.High[ind_flag] - df.Close[ind_flag]) / df.Close[
-                ind_flag]) > failed_breakout_ratio:  # failed break out, indicating to go down
-                # if PRINT_STATE: print("Failed breakout: Breakout limit was {0}, continue to next day!".format(
-                # failed_breakout_ratio))
-                continue  # continue to next day
+            if ((df.d_range[ind_flag-1] < df.d_range[ind_flag]) and 
+                (abs(df.Close[ind_flag-1]-df.Open[ind_flag-1])*0.9 < abs(df.Close[ind_flag]-df.Open[ind_flag]))):
+                 # if PRINT_STATE: print("Immediate price action, not tighter than previous day!, continue to next day!")
+                 continue
+            
+            if df.Low[ind_flag] < df.Low[ind_flag-1]*0.995:
+                # if PRINT_STATE: print("Low is lower than the yesterdays low!, continue to next day!")
+                continue
 
-            # Calculating tightness parameters and evaluating flags to trigger HTF condition
-            tightness_flag_oc = True if ((abs(df.co_tightness[ind_flag]) <= close_open_tightness_ratio_threshold) and
-                                         (abs(df.co_tightness[
-                                                  ind_flag - 1]) <= close_open_tightness_ratio_threshold)) else False
-            # magnitude of tightness
-            # tightness_flag_hl = True if ((abs(df.hl_tightness[ind_flag]) <= high_low_tightness_ratio_threshold) and
-            #  (abs(df.hl_tightness[ind_flag-1]) <= high_low_tightness_ratio_threshold)) else False # magnitude of
-            #  tightness
+            long_period = 20
+            short_period = 3
+            lpi = np.arange(ind_flag-long_period, ind_flag)
+            spi = np.arange(ind_flag-short_period+1, ind_flag+1)
 
-            max_co_price = max(df.Close[ind_flag], df.Close[ind_flag - 1], df.Open[ind_flag], df.Open[ind_flag - 1])
-            min_co_price = min(df.Close[ind_flag], df.Close[ind_flag - 1], df.Open[ind_flag], df.Open[ind_flag - 1])
-            co_2days_tightness = (max_co_price - min_co_price) / df.Close[ind_flag]
-            co_2days_tightness_flag = True if co_2days_tightness <= close_open_tightness_ratio_2days_threshold else \
-                False  # magnitude of tightness
+            adr_limit = 0.015
+            if df.hl_tightness[lpi].mean() < adr_limit:
+                # if PRINT_STATE: print("ADR is {0}, below the limit {1}!".format(df.hl_tightness[lpi].mean(), adr_limit))
+                continue
+  
+            tightness_threshold_constant = 1.5
+            max_co_price =  max(df.Close[spi].max(), df.Open[spi].max())
+            min_co_price =  min(df.Close[spi].max(), df.Open[spi].max())
+            co_tightness = (max_co_price - min_co_price) / df.Close[spi].mean()
+            co_ratio = co_tightness / df.co_tightness[lpi].mean()
+            tightness_flag_oc = True if (co_ratio <= tightness_threshold_constant) else False
 
-            # max_hl_price = max(df.High[ind_flag],df.High[ind_flag-1])
-            # min_hl_price = min(df.Low[ind_flag],df.Low[ind_flag-1])
-            # hl_2days_tightness = (max_hl_price - min_hl_price) / df.Close[ind_flag]
-            # hl_2days_tightness_flag = True if hl_2days_tightness <= high_low_tightness_ratio_2days_threshold else
-            # False # magnitude of tightness
+            d_range_constant = 1.5
+            d_range_ratio = (df.High[spi].max() - df.Low[spi].min()) / df.d_range[lpi].mean()
+            d_range_flag = True if (d_range_ratio <= d_range_constant) else False
 
-            # if co_2days_tightness_flag and hl_2days_tightness_flag and tightness_flag_oc and tightness_flag_hl: #
-            # HTF tightness condition
-            if co_2days_tightness_flag and tightness_flag_oc:  # HTF tightness condition
 
-                local_price_increase = df.Close[ind_flag] - pole_start_price
-                local_lower_price_band = df.Close[ind_flag] - local_price_increase * 0.20
-                local_upper_price_band = df.Close[ind_flag] + local_price_increase * 0.20
+            failed_breakout_ratio = df.hl_tightness[lpi].mean()*0.5
+            if ((df.High[ind_flag]-df.Close[ind_flag])/df.Close[ind_flag]) > failed_breakout_ratio: # failed break out, indicating to go down
+                # if PRINT_STATE: print("Failed breakout: Breakout limit was {0}, continue to next day!".format(failed_breakout_ratio))
+                continue    # continue to next day
+
+            if d_range_flag  and tightness_flag_oc: # HTF tightness condition
+
+                local_price_increase = df.Close[ind_flag]-pole_start_price
+                local_lower_price_band = df.Close[ind_flag] - local_price_increase*0.20
+                local_upper_price_band = df.Close[ind_flag] + local_price_increase*0.20
 
                 # to improve the estimation of the transition point from pole to flag
                 cons_day_count = 0
                 for day_ind in range(ind_flag, pole_start_ind, -1):
                     if ((local_lower_price_band <= df.Close[day_ind] <= local_upper_price_band) and
-                        (local_lower_price_band <= df.Open[day_ind] <= local_upper_price_band)) or (
-                            cons_day_count == 0):
+                        (local_lower_price_band <= df.Open[day_ind] <= local_upper_price_band)) or (cons_day_count==0):
                         cons_day_count += 1
-                        if cons_day_count == (ind_flag - pole_start_ind):
+                        if cons_day_count == (ind_flag-pole_start_ind):
                             modified_pole_length = 1
-                            ave_cons_natr = df.natr[day_ind:(ind_flag + 1)].mean()
+                            ave_cons_natr = df.natr[day_ind:(ind_flag+1)].mean()
                             break
                     else:
-                        if (day_ind + 1) > pole_end_ind:  # in consolidation
+                        if (day_ind+1) > pole_end_ind: # in consolidation
                             modified_pole_length = pole_length
-                            cons_day_count = ind_flag - pole_end_ind
-                            ave_cons_natr = df.natr[(pole_end_ind + 1):(ind_flag + 1)].mean()
+                            cons_day_count = ind_flag-pole_end_ind
+                            ave_cons_natr = df.natr[(pole_end_ind+1):(ind_flag+1)].mean()
                             break
                         else:
-                            modified_pole_length = day_ind - pole_start_ind + 1
-                            ave_cons_natr = df.natr[(day_ind + 1):(ind_flag + 1)].mean()
+                            modified_pole_length = day_ind-pole_start_ind+1
+                            ave_cons_natr = df.natr[(day_ind+1):(ind_flag+1)].mean()
                         break
 
-                flag_to_pole_ratio = cons_day_count / modified_pole_length
+                flag_to_pole_ratio = cons_day_count/modified_pole_length
 
                 ftpr_score = sweet_spot_scorer(flag_to_pole_ratio, ftpr_score_max, ftpr_score_min,
-                                               flag_to_pole_ratio_min, flag_to_pole_ratio_opt_low_lim,
-                                               flag_to_pole_ratio_opt_up_lim, flag_to_pole_ratio_max)
+                                flag_to_pole_ratio_min, flag_to_pole_ratio_opt_low_lim, flag_to_pole_ratio_opt_up_lim, flag_to_pole_ratio_max)
 
+                if cons_day_count <= 3:
+                    ftpr_score = ftpr_score*0.75
+                
                 if not is_in_pole:
-                    flag_to_pole_ratio2 = (ind_flag - pole_end_ind) / pole_length
+                    flag_to_pole_ratio2 = (ind_flag - pole_end_ind)/pole_length
                     ftpr_score2 = sweet_spot_scorer(flag_to_pole_ratio2, ftpr_score_max, ftpr_score_min,
-                                                    flag_to_pole_ratio_min, flag_to_pole_ratio_opt_low_lim,
-                                                    flag_to_pole_ratio_opt_up_lim, flag_to_pole_ratio_max)
-
+                                flag_to_pole_ratio_min, flag_to_pole_ratio_opt_low_lim, flag_to_pole_ratio_opt_up_lim, flag_to_pole_ratio_max)
+                    if cons_day_count <= 3:
+                        ftpr_score2 = ftpr_score2*0.75
+                
                     if (ftpr_score2 > ftpr_score):
                         modified_pole_length = pole_length
-                        cons_day_count = ind_flag - pole_end_ind
+                        cons_day_count = ind_flag-pole_end_ind
                         flag_to_pole_ratio = flag_to_pole_ratio2
                         ftpr_score = ftpr_score2
 
-                cons_indexes = np.arange(ind_flag - cons_day_count + 1, ind_flag + 1)
-
-                # ave_cons_natr = df.natr[cons_indexes].mean()
-                # ave_cons_tightness_score = linear_scorer(ave_cons_natr/natr_mean, 2, 1, 0.3, 1)
+                cons_indexes = np.arange(ind_flag-cons_day_count+1, ind_flag+1)
+                
+                ave_tightness = df.co_tightness[lpi].abs().mean()
 
                 ave_cons_close = df.Close[cons_indexes].mean()
                 ave_cons_var_ratio = mean(abs(df.Close[cons_indexes] - ave_cons_close)) / ave_cons_close
-                ave_hl_band_fillment = mean(
-                    (df.High[cons_indexes] - df.Low[cons_indexes]) / (local_upper_price_band - local_lower_price_band))
-                ave_cons_var_ratio_score = linear_scorer(ave_cons_var_ratio, 10, 1,
-                                                         ave_tightness * (0.25 + 0.01 * cons_day_count),
-                                                         ave_tightness * (0.75 + 0.01 * cons_day_count))
+                ave_hl_band_fillment = mean((df.High[cons_indexes] - df.Low[cons_indexes]) / (local_upper_price_band - local_lower_price_band))
+                ave_cons_var_ratio_score = linear_scorer(ave_cons_var_ratio, 10, 1, ave_tightness*(0.2+0.02*cons_day_count), ave_tightness*(0.7+0.02*cons_day_count))
                 ave_hl_band_fillment_score = linear_scorer(ave_hl_band_fillment, 10, 1, 0.1, 1)
-                ave_cons_tightness_score = math.sqrt(ave_cons_var_ratio_score * ave_hl_band_fillment_score)
+                ave_cons_tightness_score = math.sqrt(ave_cons_var_ratio_score*ave_hl_band_fillment_score)
 
-                # htf_weighted_slope = ((df.Close.diff()[ind_flag-2:ind_flag+1] * [0.17, 0.33, 0.50]).sum()) /
-                # df.Close[ind_flag]
-                # htf_weighted_slope_score = linear_scorer(htf_weighted_slope, 1, 0.5, 0, -0.02)
-
-                htf_weighted_slope = (df.Close[ind_flag] - df.Close[ind_flag - 3:ind_flag].mean()) / df.Close[ind_flag]
+                htf_weighted_slope = (df.Close[ind_flag]-df.Close[ind_flag-3:ind_flag].mean()) / df.Close[ind_flag]
                 htf_weighted_slope_score = linear_scorer(htf_weighted_slope, 10, 5, 0, -0.015)
 
                 SMA_cond_count = df.SMA_cond_count[ind_flag]
-                SMA_start_price = df.Close[ind_flag - SMA_cond_count + 1]
+                SMA_start_price = df.Close[ind_flag-SMA_cond_count+1]
                 SMA_end_price = df.Close[ind_flag]
                 SMA_diff = SMA_end_price - SMA_start_price
-                SMA_gain_rate = SMA_diff / SMA_start_price
-                SMA_gain_rate_score = linear_scorer(SMA_gain_rate, 10, 1, 0.005, 0.001)
+                SMA_gain_rate = (SMA_diff/SMA_start_price) / SMA_cond_count
+                SMA_gain_rate_score = linear_scorer(SMA_gain_rate, 10, 1, 0.01, 0.001)
                 SMA_cond_count_score = sweet_spot_scorer(SMA_cond_count, SMA_cond_score_max, SMA_cond_score_min,
-                                                         min_SMA_cond_thresh, min_opt_SMA_cond_thresh,
-                                                         max_opt_SMA_cond_thresh, max_SMA_cond_thresh)
-                SMA_cond_score = math.sqrt(SMA_cond_count_score * SMA_gain_rate_score)
+                                                    min_SMA_cond_thresh, min_opt_SMA_cond_thresh, max_opt_SMA_cond_thresh, max_SMA_cond_thresh)
+                SMA_cond_score = math.sqrt(SMA_cond_count_score*SMA_gain_rate_score)
+        
+                adr_score = linear_scorer(df.hl_tightness[lpi].mean(), 10, 5, 0.03, 0.015)
 
-                # taking ratio of the length to get estimated pole_score for back-testing
-                pole_score_mod = pole_score * modified_pole_length / pole_length
-                natr_score = linear_scorer(natr_mean, 10, 5, 0.035, 0.015)
+                close_to_high = (df.Close[ind_flag]-df.Low[ind_flag]) / (df.High[ind_flag]-df.Low[ind_flag])
+                close_to_high_score = linear_scorer(close_to_high, 10, 1, 0.9, 0.3)
 
+                d_range_ratio_score = linear_scorer(d_range_ratio/d_range_constant, 10, 5, 0.5, 1)
+                co_ratio_score = linear_scorer(co_ratio, 10, 5, 0.5, 1)
+                sp_lp_tightness_score = math.sqrt(d_range_ratio_score*co_ratio_score)
+
+                if is_in_pole:
+                    pole_score_mod = pole_score*0.75 * modified_pole_length/pole_length
+                else:
+                    pole_score_mod = pole_score*0.75
                 pole_score_sat = min(pole_score_mod, 10)
 
-                # htf_score = ((pole_score_sat * (ftpr_score+SMA_cond_score+ave_cons_tightness_score+natr_score)**2
-                # )**(1./3))*htf_weighted_slope_score
-                htf_score = (pole_score_sat * ftpr_score * SMA_cond_score * ave_cons_tightness_score * natr_score *
-                             htf_weighted_slope_score) ** (1. / 6)
+
+                htf_score = (pole_score_sat*0.25 + ftpr_score + SMA_cond_score + ave_cons_tightness_score + 
+                             adr_score + htf_weighted_slope_score + close_to_high_score + sp_lp_tightness_score) / 7.25
 
                 df.SMA_cond_score[ind_flag] = SMA_cond_score
                 df.pole_score_mod[ind_flag] = pole_score_mod
@@ -566,13 +535,14 @@ def htf_score_calc(df, region_indexes):
                 df.cons_day_count[ind_flag] = cons_day_count
                 df.ftpr_score[ind_flag] = ftpr_score
                 df.ave_cons_tightness_score[ind_flag] = ave_cons_tightness_score
-                df.natr_score[ind_flag] = natr_score
+                df.natr_score[ind_flag] = adr_score
                 df.htf_weighted_slope_score[ind_flag] = htf_weighted_slope_score
                 df.htf_score[ind_flag] = htf_score
                 # if PRINT_STATE: print("HTF found!")
 
-            # else:
-            # if PRINT_STATE: print("Not tight enough! Continue to next day!")
+            else:
+                # if PRINT_STATE: print("Not tight enough! Continue to next day!")
+                continue
 
         region_cnt += 1
 
