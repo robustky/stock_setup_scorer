@@ -94,7 +94,7 @@ def get_regions(df, sma_in, sma_out):
     in_region = False
     index_start = []
     index_end = []
-    for i in range(30,len(df)): # do not interested in the first 30 days
+    for i in range(20,len(df)): # do not interested in the first 20 days
         if df.SMA_in_slope[i] > 0 and in_region == False:
             in_region = True
 
@@ -302,7 +302,8 @@ def htf_score_calc(df, region_indexes):
     ########################################################
 
     df[["SMA_cond_score","pole_score_mod","modified_pole_length","cons_day_count",
-        "ftpr_score","ave_cons_tightness_score","natr_score","htf_weighted_slope_score","htf_score"]] = np.NaN
+        "ftpr_score","ave_cons_tightness_score","natr_score","htf_weighted_slope_score",
+        "close_to_high_score","sp_lp_tightness_score","htf_score"]] = np.NaN
 
     region_cnt = 0
     # looping through every upward linear movement of a ticker to check for consolidation (i.e pole-flag check)
@@ -383,7 +384,7 @@ def htf_score_calc(df, region_indexes):
                 continue
 
             long_period = 20
-            short_period = 3
+            short_period = 2
             lpi = np.arange(ind_flag-long_period, ind_flag)
             spi = np.arange(ind_flag-short_period+1, ind_flag+1)
 
@@ -508,6 +509,8 @@ def htf_score_calc(df, region_indexes):
                 df.ave_cons_tightness_score[ind_flag] = ave_cons_tightness_score
                 df.natr_score[ind_flag] = adr_score
                 df.htf_weighted_slope_score[ind_flag] = htf_weighted_slope_score
+                df.close_to_high_score[ind_flag] = close_to_high_score
+                df.sp_lp_tightness_score[ind_flag] = sp_lp_tightness_score
                 df.htf_score[ind_flag] = htf_score
                 # if PRINT_STATE: print("HTF found!")
 
