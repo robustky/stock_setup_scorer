@@ -384,7 +384,7 @@ def htf_score_calc(df, region_indexes):
                 break
 
             long_period = 50
-            short_period = 2
+            short_period = 2  # Make it 3 to be on conservative side
             lpi = np.arange(ind_flag-long_period, ind_flag)
             spi = np.arange(ind_flag-short_period+1, ind_flag+1)
 
