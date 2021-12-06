@@ -334,7 +334,7 @@ def htf_score_calc(df, region_indexes):
 
         pole_length = df.day_length[pole_start_ind]
         flag_max_check_length = math.ceil(pole_length*length_ratio_lim)
-        flag_max_check_length = min(flag_max_check_length, 10)
+        flag_max_check_length = min(flag_max_check_length, 12)
 
         # Looping through to find the HTF_setup
         for ind_flag in range(pole_start_ind+5, flag_start_ind+flag_max_check_length):
