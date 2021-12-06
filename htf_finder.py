@@ -7,7 +7,7 @@ cwd = os.getcwd()
 # ticker_data = pd.read_csv("stock_list_feedback.csv",index_col=False) ---- for ticker in ticker_data.ticker:
 TICKER_HTF_TRIGGED = []
 TICKER_HTF_SCORES = []
-TICKERS = ['KEYS', 'LULU', 'TX', 'UNIT', 'NKE']
+TICKERS = ['KEYS', 'LULU', 'TX', 'UNIT', 'NKE', 'COP', 'DLTR', 'HD']
 
 cnt = 0
 
