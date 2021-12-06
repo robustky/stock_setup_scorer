@@ -355,8 +355,11 @@ def htf_score_calc(df, region_indexes):
                                    (df.Close[ind_flag-1] < max_close_regional)) else True
             else:
                 is_in_pole = False
-                is_in_price_band_2days = True if ((lower_price_band <= df.Close[ind_flag] <= upper_price_band) or
-                                                  (lower_price_band <= df.Close[ind_flag-1] <= upper_price_band)) else False
+                if ((lower_price_band <= df.Close[ind_flag] <= upper_price_band) or
+                        (lower_price_band <= df.Close[ind_flag-1] <= upper_price_band)):
+                    is_in_price_band_2days = True
+                else:
+                    is_in_price_band_2days = False
                 is_top = False
 
             if not is_in_price_band_2days:  # Check price band condition
