@@ -21,8 +21,9 @@ if __name__ == '__main__':
             TICKER_HTF_SCORES.append(gl_htf_final_day_score)
         cnt += 1
 
-    with open('htf_tickers.txt', 'w') as f:
-        for i in range(len(TICKER_HTF_TRIGGED)):
-            res_str = TICKER_HTF_TRIGGED[i] + ',' + TICKER_HTF_SCORES[i].astype(str) + '\n'
-            f.write(res_str)
-        f.close()
+    if TICKER_HTF_TRIGGED:  # Write to a file if at least one ticker is found
+        with open('htf_tickers.txt', 'w') as f:
+            for i in range(len(TICKER_HTF_TRIGGED)):
+                res_str = TICKER_HTF_TRIGGED[i] + ',' + TICKER_HTF_SCORES[i].astype(str) + '\n'
+                f.write(res_str)
+            f.close()
